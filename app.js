@@ -1001,6 +1001,7 @@ async function exportTopGifs() {
   const previousLabel = button.textContent;
   button.disabled = true;
   button.textContent = "Preparing ZIP...";
+  elements.topListCopy.textContent = "Preparing your top media ZIP...";
 
   try {
     const blob = await buildZipBlob(state.leaders);
@@ -1030,6 +1031,7 @@ async function exportGroupedPosts() {
   const previousLabel = button.textContent;
   button.disabled = true;
   button.textContent = "Preparing ZIP...";
+  elements.topListCopy.textContent = "Preparing grouped post ZIP...";
 
   try {
     const entries = [];
