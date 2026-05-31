@@ -123,15 +123,28 @@ function clearInMemoryState() {
 }
 
 function createItemsFromFiles(files) {
-  state.items = files.map((file, index) => ({
+  state.items = files.map((file, index) => createItemFromFile(file, index));
+  state.itemById = new Map(state.items.map((item) => [item.id, item]));
+}
+
+function createItemFromFile(file, index) {
+  return {
     id: `media-${index}`,
     name: file.name,
     file,
     url: URL.createObjectURL(file),
     mediaType: getMediaType(file),
     recentlyPosted: false
-  }));
-  state.itemById = new Map(state.items.map((item) => [item.id, item]));
+  };
+}
+
+function appendItemsFromFiles(files) {
+  const startIndex = state.items.length;
+  const newItems = files.map((file, index) => createItemFromFile(file, startIndex + index));
+  state.items = [...state.items, ...newItems];
+  newItems.forEach((item) => {
+    state.itemById.set(item.id, item);
+  });
 }
 
 function createItemsFromSavedEntries(entries) {
@@ -1115,19 +1128,33 @@ function renderRecentSelector() {
 async function loadFiles(fileList) {
   const files = Array.from(fileList).filter(isSupportedMedia);
 
-  if (files.length < 2) {
-    elements.setupMessage.textContent = "Choose at least 2 image, GIF, or short video files to start ranking.";
-    resetUiForNewSession();
+  if (files.length === 0) {
+    elements.setupMessage.textContent = state.items.length > 0
+      ? `${state.items.length} files loaded. Choose another folder or start ranking.`
+      : "Choose image, GIF, or short video files to start ranking.";
     return;
   }
 
-  clearInMemoryState();
-  createItemsFromFiles(files);
+  if (state.stage !== "idle") {
+    resetUiForNewSession();
+    clearInMemoryState();
+    createItemsFromFiles(files);
+  } else if (state.items.length > 0) {
+    appendItemsFromFiles(files);
+  } else {
+    clearInMemoryState();
+    createItemsFromFiles(files);
+  }
+
   state.topCount = safeTopCount(elements.topCount.value, state.items.length);
   elements.topCount.value = state.topCount;
   setInputsLocked(false);
 
-  elements.setupMessage.textContent = `${state.items.length} files loaded. Mark recent posts, then start ranking.`;
+  if (state.items.length < 2) {
+    elements.setupMessage.textContent = `${state.items.length} file loaded. Choose at least 1 more file to start ranking.`;
+  } else {
+    elements.setupMessage.textContent = `${state.items.length} files loaded. You can add another folder or mark recent posts, then start ranking.`;
+  }
   elements.saveMessage.textContent = "Video files are previewed and exported as originals; automatic video-to-GIF conversion is skipped in this browser version.";
 
   renderRecentSelector();
@@ -1208,6 +1235,8 @@ elements.gifInput.addEventListener("change", async (event) => {
     await loadFiles(event.target.files);
   } catch (error) {
     elements.setupMessage.textContent = "Those files could not be loaded cleanly. Try selecting them again.";
+  } finally {
+    event.target.value = "";
   }
 });
 elements.recentList.addEventListener("click", (event) => {
