@@ -874,9 +874,9 @@ async function buildZipEntriesBlob(entries) {
 
   for (let index = 0; index < entries.length; index += 1) {
     const entry = entries[index];
-    const item = entry.item;
     const nameBytes = encoder.encode(entry.name);
-    const fileBytes = new Uint8Array(await item.file.arrayBuffer());
+    const file = entry.file || (entry.item && entry.item.file);
+    const fileBytes = new Uint8Array(await file.arrayBuffer());
     const checksum = crc32(fileBytes);
 
     const localHeader = new ArrayBuffer(30 + nameBytes.length);
@@ -937,14 +937,15 @@ async function buildZipEntriesBlob(entries) {
 }
 
 async function deliverZipBlob(blob, filename) {
-  const zipFile = new File([blob], filename, { type: "application/zip" });
-
-  if (navigator.share && navigator.canShare && navigator.canShare({ files: [zipFile] })) {
-    await navigator.share({
-      title: filename,
-      files: [zipFile]
-    });
-    return "shared";
+  if (typeof File === "function" && navigator.share && navigator.canShare) {
+    const zipFile = new File([blob], filename, { type: "application/zip" });
+    if (navigator.canShare({ files: [zipFile] })) {
+      await navigator.share({
+        title: filename,
+        files: [zipFile]
+      });
+      return "shared";
+    }
   }
 
   const blobUrl = URL.createObjectURL(blob);
@@ -999,17 +1000,19 @@ async function exportGroupedPosts() {
   button.textContent = "Preparing ZIP...";
 
   try {
-    const entries = groups.flatMap((group) => {
+    const entries = [];
+    groups.forEach((group) => {
       const folder = `post-${padRank(group.number - 1, groups.length)}-${sanitizeFilename(group.subreddit.replace("/", "-"))}`;
-      return group.items.map((item, index) => ({
-        item,
-        name: createZipEntryName(item, index, group.items.length, folder)
-      }));
+      group.items.forEach((item, index) => {
+        entries.push({
+          item,
+          name: createZipEntryName(item, index, group.items.length, folder)
+        });
+      });
     });
 
     const planBlob = new Blob([createPlanText(groups)], { type: "text/plain" });
-    const planFile = new File([planBlob], "posting-plan.txt", { type: "text/plain" });
-    entries.push({ item: { file: planFile }, name: "posting-plan.txt" });
+    entries.push({ file: planBlob, name: "posting-plan.txt" });
 
     const blob = await buildZipEntriesBlob(entries);
     const datePart = new Date().toISOString().slice(0, 10);
