@@ -1,0 +1,9 @@
+{
+  "name": "GIF Ranker",
+  "short_name": "GIF Ranker",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#fff8ef",
+  "theme_color": "#ff855f",
+  "description": "Rank GIFs by choosing the better one in each matchup."
+}
