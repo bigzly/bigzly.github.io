@@ -1,6 +1,8 @@
 const SAVE_FILES_KEY = "gif-ranker-files";
 const SAVE_STATE_KEY = "gif-ranker-state";
 const MAX_HISTORY = 250;
+const MAX_KEEP_COUNT = 1000;
+const MAX_FILES_PER_POST = 1000;
 
 const elements = {
   gifInput: document.getElementById("gif-input"),
@@ -78,7 +80,7 @@ function safeTopCount(value, totalItems) {
     return Math.min(20, totalItems);
   }
 
-  return Math.min(parsed, totalItems);
+  return Math.min(parsed, totalItems, MAX_KEEP_COUNT);
 }
 
 function revokeAllUrls() {
@@ -366,7 +368,7 @@ function getSubredditRotation() {
 }
 
 function getPlannerSettings() {
-  const postSize = clampNumber(elements.postSize.value, 20, 1, 20);
+  const postSize = clampNumber(elements.postSize.value, 20, 1, MAX_FILES_PER_POST);
   const spacingHours = clampNumber(elements.postSpacingHours.value, 12, 1, 168);
   const startTime = parseDatetimeLocalValue(elements.postStartTime.value) || new Date(Date.now() + 60 * 60 * 1000);
   const titleTemplate = elements.postTitleTemplate.value.trim() || "Ranked set #{number}";
