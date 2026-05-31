@@ -856,6 +856,31 @@ function writeUint32(view, offset, value) {
   view.setUint32(offset, value >>> 0, true);
 }
 
+function readBlobAsArrayBuffer(blob) {
+  if (blob && typeof blob.arrayBuffer === "function") {
+    return blob.arrayBuffer();
+  }
+
+  return new Promise((resolve, reject) => {
+    if (typeof FileReader !== "function") {
+      reject(new Error("This browser cannot read files for ZIP export."));
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = () => reject(reader.error || new Error("File read failed."));
+    reader.readAsArrayBuffer(blob);
+  });
+}
+
+function getErrorMessage(error) {
+  if (error && error.message) {
+    return error.message;
+  }
+  return "Unknown export error";
+}
+
 async function buildZipBlob(items) {
   const entries = items.map((item, index) => ({
     item,
@@ -876,7 +901,10 @@ async function buildZipEntriesBlob(entries) {
     const entry = entries[index];
     const nameBytes = encoder.encode(entry.name);
     const file = entry.file || (entry.item && entry.item.file);
-    const fileBytes = new Uint8Array(await file.arrayBuffer());
+    if (!file) {
+      throw new Error(`Missing file for ZIP entry: ${entry.name}`);
+    }
+    const fileBytes = new Uint8Array(await readBlobAsArrayBuffer(file));
     const checksum = crc32(fileBytes);
 
     const localHeader = new ArrayBuffer(30 + nameBytes.length);
@@ -938,13 +966,17 @@ async function buildZipEntriesBlob(entries) {
 
 async function deliverZipBlob(blob, filename) {
   if (typeof File === "function" && navigator.share && navigator.canShare) {
-    const zipFile = new File([blob], filename, { type: "application/zip" });
-    if (navigator.canShare({ files: [zipFile] })) {
-      await navigator.share({
-        title: filename,
-        files: [zipFile]
-      });
-      return "shared";
+    try {
+      const zipFile = new File([blob], filename, { type: "application/zip" });
+      if (navigator.canShare({ files: [zipFile] })) {
+        await navigator.share({
+          title: filename,
+          files: [zipFile]
+        });
+        return "shared";
+      }
+    } catch (error) {
+      // If sharing is unavailable after ZIP preparation, continue with a download.
     }
   }
 
@@ -981,7 +1013,7 @@ async function exportTopGifs() {
       elements.topListCopy.textContent = "Downloaded your ordered top media as a ZIP with numbered filenames.";
     }
   } catch (error) {
-    elements.topListCopy.textContent = "Export failed on this browser. Your top list text export still works.";
+    elements.topListCopy.textContent = `Export failed: ${getErrorMessage(error)}. Your top list text export still works.`;
   } finally {
     button.disabled = false;
     button.textContent = previousLabel;
@@ -1021,7 +1053,7 @@ async function exportGroupedPosts() {
       ? "Shared grouped post folders and posting-plan.txt."
       : "Downloaded grouped post folders and posting-plan.txt.";
   } catch (error) {
-    elements.topListCopy.textContent = "Grouped export failed. You can still copy the plan text.";
+    elements.topListCopy.textContent = `Grouped export failed: ${getErrorMessage(error)}. You can still copy the plan text.`;
   } finally {
     button.disabled = false;
     button.textContent = previousLabel;
