@@ -39,6 +39,7 @@ const elements = {
   topList: document.getElementById("top-list"),
   fullList: document.getElementById("full-list"),
   exportTopButton: document.getElementById("export-top-button"),
+  exportCutButton: document.getElementById("export-cut-button"),
   copyTopButton: document.getElementById("copy-top-button"),
   copyAllButton: document.getElementById("copy-all-button"),
   postSize: document.getElementById("post-size"),
@@ -520,6 +521,7 @@ function renderResults() {
 
   elements.topListHeading.textContent = `Top ${state.topCount}`;
   elements.cutListHeading.textContent = state.cuts.length > 0 ? "Trimmed away" : "No trimmed media";
+  elements.exportCutButton.disabled = state.cuts.length === 0;
   const skippedCopy = state.autoSkippedRecent > 0 ? ` ${state.autoSkippedRecent} recent picks were skipped after the shortlist filled.` : "";
   elements.topListCopy.textContent = `${state.leaders.length} files are ready for your post, already in order.${skippedCopy}`;
 
@@ -1036,6 +1038,34 @@ async function exportTopGifs() {
   }
 }
 
+async function exportCutMedia() {
+  if (state.cuts.length === 0) {
+    elements.topListCopy.textContent = "There are no cut files to export yet.";
+    return;
+  }
+
+  const button = elements.exportCutButton;
+  const previousLabel = button.textContent;
+  button.disabled = true;
+  button.textContent = "Preparing ZIP...";
+  elements.topListCopy.textContent = "Preparing your cut media ZIP...";
+
+  try {
+    const blob = await buildZipBlob(state.cuts);
+    const datePart = new Date().toISOString().slice(0, 10);
+    const action = await deliverZipBlob(blob, `media-cut-${state.cuts.length}-${datePart}.zip`);
+
+    elements.topListCopy.textContent = action === "shared"
+      ? "Shared your cut media as a ZIP with numbered filenames."
+      : "Downloaded your cut media as a ZIP with numbered filenames.";
+  } catch (error) {
+    elements.topListCopy.textContent = `Cut export failed: ${getErrorMessage(error)}. You can still copy the cut list text.`;
+  } finally {
+    button.disabled = state.cuts.length === 0;
+    button.textContent = previousLabel;
+  }
+}
+
 async function exportGroupedPosts() {
   const groups = createPostGroups();
   if (groups.length === 0) {
@@ -1276,6 +1306,9 @@ elements.restartButton.addEventListener("click", () => {
 });
 elements.exportTopButton.addEventListener("click", () => {
   exportTopGifs();
+});
+elements.exportCutButton.addEventListener("click", () => {
+  exportCutMedia();
 });
 elements.copyTopButton.addEventListener("click", () => {
   copyLines(buildListText(state.leaders), `Copied your top ${state.leaders.length} list to the clipboard.`);
